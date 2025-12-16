@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Scrabble Solitaire</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f2f2f2;
+      text-align: center;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 20px auto;
+    }
+
+    #board td {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #999;
+      background: linear-gradient(#fff, #ddd);
+      vertical-align: middle;
+      position: relative;
+    }
+
+    #rack {
+      margin: 20px;
+      height: 60px;
+    }
+
+    .tile {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 3px;
+      font-weight: bold;
+      border-radius: 6px;
+      background: linear-gradient(#ffe6c7, #ffcc99);
+      cursor: grab;
+      user-select: none;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .tile.selected {
+      outline: 3px solid red;
+      box-shadow: 0 0 10px rgba(255,0,0,0.6);
+    }
+
+    button {
+      padding: 10px 20px; font-size: 16px;
+      background: linear-gradient(to bottom, #6ec1e4, #3b8ed4);
+      color: white; border: none; border-radius: 6px;
+      cursor: pointer; margin: 10px;
+    }
+    button:hover { background: linear-gradient(to bottom, #3b8ed4, #2a6ba0); }
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.score-table th {
+  background: #817b7b;
+  color: white;
+  padding: 6px;
+}
+
+.score-table td {
+  padding: 6px;
+}
+
+.p1  { background: #e8f5e9; }
+.p2  { background: #7bbbe9; }
+.p3  { background: #fff3e0; }
+.p4  { background: #ff82ac; }
+.p5  { background: #ac88e2; }
+.p8  { background: #fbb5ff; }
+.p10 { background: #ffccbc; }
+#board {
+  background: #bbb;
+  padding: 8px;
+  border-radius: 8px;
+}
+  </style>
+</head>
+
+<body>
+  <h1>Scrabble Solitaire</h1>
+  <p>Score: <span id="score">0</span></p>
+  <button onclick="checkBoard()">Check Word</button>
+  <button onclick="deleteSelectedTile()">Delete Tile (-3)</button>
+<div style="display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap;">
+
+  <!-- Instructions -->
+  <div style="background:white; padding:15px; border-radius:8px; width:800px; box-shadow:0 2px 6px rgba(0,0,0,0.2); text-align:left;">
+    <h3>How to Play</h3>
+    <ul>
+      <li>Drag tiles from the rack onto the board</li>
+      <li>Click a tile to select it</li>
+      <li>Press <b>Shift</b> to deselect</li>
+      <li>Form valid horizontal or vertical words</li>
+      <li>Click <b>Check Word</b> to score</li>
+      <li><b>Delete Tile</b> removes a tile (-3 points)</li>
+    </ul>
+
+  <!-- Score Table -->
+<h3>Letter Scores</h3>
+    <table class="score-table">
+    <tr><th>Points</th><th>Letters</th></tr>
+    <tr class="p1"><td>1</td><td>E A I O N R T L S U</td></tr>
+    <tr class="p2"><td>2</td><td>D G</td></tr>
+    <tr class="p3"><td>3</td><td>B C M P</td></tr>
+    <tr class="p4"><td>4</td><td>F H V W Y</td></tr>
+    <tr class="p5"><td>5</td><td>K</td></tr>
+    <tr class="p8"><td>8</td><td>J X</td></tr>
+    <tr class="p10"><td>10</td><td>Q Z</td></tr>
+    </table>
+  </div>
+
+</div>
+  <table id="board"></table>
+  <div id="rack"></div>
+
+<script>
+const boardSize = 15;
+const rackSize = 7;
+let board = [];
+let rack = [];
+let score = 0;
+let validWords = [];
+let prevScore = 0;
+
+let draggingTile = null;
+let offsetX = 0;
+let offsetY = 0;
+let clickStartX = 0;
+let clickStartY = 0;
+let isDragging = false;
+let selectedTile = null;
+
+/* =======================
+   LETTER DISTRIBUTION
+======================= */
+const letterData = [
+  ['E',12,1],['A',9,1],['I',9,1],['O',8,1],['N',6,1],['R',6,1],['T',6,1],
+  ['L',4,1],['S',4,1],['U',4,1],
+  ['D',4,2],['G',3,2],
+  ['B',2,3],['C',2,3],['M',2,3],['P',2,3],
+  ['F',2,4],['H',2,4],['V',2,4],['W',2,4],['Y',2,4],
+  ['K',1,5],
+  ['J',1,8],['X',1,8],
+  ['Q',1,10],['Z',1,10]
+];
+
+let letterPool = [];
+letterData.forEach(([l,c,p])=>{
+  for(let i=0;i<c;i++) letterPool.push({letter:l, points:p});
+});
+
+// Load valid words
+fetch("words.txt")
+  .then(r=>r.text())
+  .then(t=>validWords = t.toUpperCase().split("\n").map(w=>w.trim()));
+
+const boardEl = document.getElementById("board");
+const rackEl = document.getElementById("rack");
+
+/* =======================
+   BOARD SETUP
+======================= */
+for(let r=0;r<boardSize;r++){
+  const tr = document.createElement("tr");
+  const row = [];
+  for(let c=0;c<boardSize;c++){
+    const td = document.createElement("td");
+    td.dataset.row = r;
+    td.dataset.col = c;
+    tr.appendChild(td);
+    row.push('');
+  }
+  board.push(row);
+  boardEl.appendChild(tr);
+}
+
+/* =======================
+   RACK FUNCTIONS
+======================= */
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+function drawLetter(){
+  shuffle(letterPool);
+  return letterPool.pop() || null; 
+}
+
+function refillRack(){
+  while(rack.length < rackSize){
+    const l = drawLetter();
+    if(!l) break;
+    rack.push(l);
+  }
+  renderRack();
+}
+
+function renderRack(){
+  rackEl.innerHTML = '';
+  rack.forEach(t=>{
+    const div = createTile(t);
+    div.originalParent = rackEl;
+    rackEl.appendChild(div);
+  });
+}
+
+function createTile(data){
+  const tile = document.createElement("div");
+  tile.className = "tile";
+  tile.textContent = data.letter;
+  tile.dataset.points = data.points;
+
+  tile.addEventListener("mousedown", e => {
+    draggingTile = tile;
+    clickStartX = e.clientX;
+    clickStartY = e.clientY;
+    isDragging = false;
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+
+  return tile;
+}
+
+/* =======================
+   DRAGGING FUNCTIONS
+======================= */
+function onMouseMove(e){
+  if(!draggingTile) return;
+
+  const dx = e.pageX - clickStartX;
+  const dy = e.pageY - clickStartY;
+
+  if(!isDragging && Math.hypot(dx, dy) > 5){
+    isDragging = true;
+
+    const rect = draggingTile.getBoundingClientRect();
+    offsetX = e.pageX - rect.left - window.scrollX;
+    offsetY = e.pageY - rect.top  - window.scrollY;
+
+    draggingTile.style.position = "absolute";
+    draggingTile.style.zIndex = 1000;
+    draggingTile.style.pointerEvents = "none";
+    document.body.appendChild(draggingTile);
+  }
+
+  if(isDragging){
+    draggingTile.style.left = (e.pageX - offsetX) + "px";
+    draggingTile.style.top  = (e.pageY - offsetY) + "px";
+  }
+}
+
+function onMouseUp(e){
+  document.removeEventListener("mousemove", onMouseMove);
+  document.removeEventListener("mouseup", onMouseUp);
+
+  if(!draggingTile) return;
+
+  if(isDragging){
+    const cell = document.elementFromPoint(e.clientX, e.clientY)?.closest("td");
+    if(cell && board[+cell.dataset.row][+cell.dataset.col]===''){
+        draggingTile.style.pointerEvents = "auto";
+      placeTile(draggingTile, cell, +cell.dataset.row, +cell.dataset.col);
+      
+    } else snapBack(draggingTile);
+  } else {
+    // treat as click → select
+    if(selectedTile) selectedTile.classList.remove("selected");
+    selectedTile = draggingTile;
+    draggingTile.classList.add("selected");
+  }
+
+  draggingTile = null;
+}
+
+/* =======================
+   PLACE & SNAPBACK
+======================= */
+function placeTile(tile, cell, r, c){
+  const old = tile.originalParent;
+  if(old.tagName === "TD"){
+    const or = +old.dataset.row;
+    const oc = +old.dataset.col;
+    board[or][oc] = '';
+    old.innerHTML = '';
+  } else {
+    rack.splice(rack.findIndex(t=>t.letter===tile.textContent),1);
+  }
+
+  board[r][c] = tile.textContent;
+
+  tile.style.position = "relative";
+  tile.style.left = "0";
+  tile.style.top = "0";
+  tile.style.zIndex = "";
+
+  tile.originalParent = cell;
+  cell.appendChild(tile);
+
+  refillRack();
+}
+
+function snapBack(tile){
+  tile.style.position = "relative";
+  tile.style.left = "0";
+  tile.style.top = "0";
+  tile.style.zIndex = "";
+  tile.originalParent.appendChild(tile);
+}
+
+/* =======================
+   WORD CHECK
+======================= */
+/* =======================
+   WORD CHECK WITH LETTER SCORES
+======================= */
+function checkBoard() {
+    if (!rack.length && !document.querySelectorAll("#board .tile").length) return;
+
+    let points = 0;
+    const visited = Array.from({length: boardSize}, () => Array(boardSize).fill(false));
+
+    for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+            if (board[r][c] === '' || visited[r][c]) continue;
+
+            // Check horizontal word
+            let cc = c;
+            let hWord = '';
+            let hTiles = [];
+            while (cc < boardSize && board[r][cc] !== '') {
+                hWord += board[r][cc];
+                hTiles.push([r, cc]);
+                visited[r][cc] = true;
+                cc++;
+            }
+            if (hWord.length > 1 && validWords.includes(hWord)) {
+                hTiles.forEach(([rr, cc]) => {
+                    const tileEl = document.querySelector(`td[data-row="${rr}"][data-col="${cc}"] .tile`);
+                    if (tileEl) points += +tileEl.dataset.points;
+                });
+            }
+
+            // Check vertical word
+            let rr = r;
+            let vWord = '';
+            let vTiles = [];
+            while (rr < boardSize && board[rr][c] !== '') {
+                vWord += board[rr][c];
+                vTiles.push([rr, c]);
+                rr++;
+            }
+            if (vWord.length > 1 && validWords.includes(vWord)) {
+                vTiles.forEach(([rr, cc]) => {
+                    const tileEl = document.querySelector(`td[data-row="${rr}"][data-col="${cc}"] .tile`);
+                    if (tileEl) points += +tileEl.dataset.points;
+                });
+            }
+        }
+    }
+    points -= prevScore;
+    score += points;
+    document.getElementById("score").textContent = score;
+    alert(points ? `Scored ${points}` : "No valid words");
+}
+document.addEventListener("keydown", e => {
+    if(e.key === "Shift" && selectedTile) {
+        selectedTile.classList.remove("selected");
+        selectedTile = null;
+    }
+});
+/* =======================
+   DELETE TILE
+======================= */
+function deleteSelectedTile(){
+  if(!selectedTile) return;
+
+  const cell = selectedTile.parentElement;
+  if(cell.tagName !== "TD") return;
+
+  const r = +cell.dataset.row;
+  const c = +cell.dataset.col;
+  board[r][c] = '';
+  cell.innerHTML = '';
+
+  selectedTile = null;
+
+  score -= 3;
+  document.getElementById("score").textContent = score;
+
+  refillRack();
+}
+
+/* =======================
+   INIT
+======================= */
+refillRack();
+
+</script>
+</body>
+</html>
