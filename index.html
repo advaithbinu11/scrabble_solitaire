@@ -1,11 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single+Ink:wght@300&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <title>Scrabble Solitaire</title>
   <style>
+    @keyframes boardEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideFadeDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Title animation */
+h1 {
+  animation: slideFadeDown 0.7s ease-out;
+}
+
+/* Instructions card animation */
+.instructions {
+  animation: fadeUp 0.6s ease-out;
+  animation-delay: 0.2s;
+  animation-fill-mode: backwards;
+}
+#board {
+  animation: boardEnter 0.6s ease-out;
+}
+
     body {
-      font-family: Arial;
-      background: #f2f2f2;
+      font-family: Roboto;
+      background: #d0fcf6;
       text-align: center;
     }
 
@@ -73,7 +125,7 @@
   padding: 6px;
 }
 
-.p1  { background: #e8f5e9; }
+.p1  { background: #9aef89; }
 .p2  { background: #7bbbe9; }
 .p3  { background: #fff3e0; }
 .p4  { background: #ff82ac; }
@@ -85,18 +137,88 @@
   padding: 8px;
   border-radius: 8px;
 }
+.top-bar {
+  display: flex;
+  justify-content: left;
+  align-items: center;
+  gap: 30px;
+  margin-top: 20px;
+  margin-left: 350px;
+  flex-wrap: wrap;
+}
+
+.score-box {
+  padding: 0px 70px;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.button-box {
+  display: flex;
+  gap: 12px;
+  margin-left: 120px;
+}
+#checkpoint-toast {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: #333;
+  color: white;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+  z-index: 2000;
+}
+
+#checkpoint-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Score animation */
+.score-box {
+  animation: fadeInUp 0.5s ease-out;
+  animation-delay: 0.6s;
+  animation-fill-mode: backwards;
+}
+
+/* Buttons animation */
+.button-box button {
+  animation: fadeInUp 0.5s ease-out;
+  animation-fill-mode: backwards;
+}
+
+.button-box button:nth-child(1) {
+  animation-delay: 0.75s;
+}
+
+.button-box button:nth-child(2) {
+  animation-delay: 0.9s;
+}
   </style>
 </head>
 
 <body>
   <h1>Scrabble Solitaire</h1>
-  <p>Score: <span id="score">0</span></p>
-  <button onclick="checkBoard()">Check Word</button>
-  <button onclick="deleteSelectedTile()">Delete Tile (-3)</button>
 <div style="display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap;">
 
   <!-- Instructions -->
-  <div style="background:white; padding:15px; border-radius:8px; width:800px; box-shadow:0 2px 6px rgba(0,0,0,0.2); text-align:left;">
+  <div class="instructions" style="background:white; padding:15px; border-radius:8px; width:800px; box-shadow:0 2px 6px rgba(0,0,0,0.2); text-align:left;">
     <h3>How to Play</h3>
     <ul>
       <li>Drag tiles from the rack onto the board</li>
@@ -120,11 +242,21 @@
     <tr class="p10"><td>10</td><td>Q Z</td></tr>
     </table>
   </div>
-
 </div>
-  <table id="board"></table>
-  <div id="rack"></div>
+<div class="top-bar">
+  <div class="score-box">
+    <p>Score: <span id="score">0</span></p>
+  </div>
 
+  <div class="button-box">
+    <button onclick="checkBoard()">Check Word</button>
+    <button onclick="deleteSelectedTile()">Delete Tile (-3)</button>
+  </div>
+</div>
+
+<table id="board"></table>
+<div id="rack"></div>
+<div id="checkpoint-toast"></div>
 <script>
 const boardSize = 15;
 const rackSize = 7;
@@ -208,7 +340,23 @@ function refillRack(){
   }
   renderRack();
 }
+function animateScore(oldScore, newScore) {
+    const display = document.getElementById("score");
+    let current = oldScore;
+    const increment = Math.ceil((newScore - oldScore) / 20); // 20 steps
 
+    function step() {
+        current += increment;
+        if (current >= newScore) {
+            current = newScore;
+            display.textContent = current;
+        } else {
+            display.textContent = current;
+            requestAnimationFrame(step);
+        }
+    }
+    step();
+}
 function renderRack(){
   rackEl.innerHTML = '';
   rack.forEach(t=>{
@@ -217,7 +365,33 @@ function renderRack(){
     rackEl.appendChild(div);
   });
 }
+const scoreCheckpoints = {
+  1: "First Move! 🗿",
+  25: "Nice start! 🤫🧏",
+  50: "Heating up! 🔥🔥",
+  100: "Triple digits! 💯",
+  150: "Scrabble machine! 🏆"
+};
 
+let reachedCheckpoints = new Set();
+function showCheckpoint(msg) {
+  const toast = document.getElementById("checkpoint-toast");
+  toast.textContent = msg;
+  toast.classList.add("show");
+
+  setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2500);
+}
+function checkScoreCheckpoints() {
+  for (const cp in scoreCheckpoints) {
+    const cpNum = Number(cp);
+    if (score >= cpNum) {
+      showCheckpoint("Achievement Unlocked:\n" + scoreCheckpoints[cpNum]);
+      delete scoreCheckpoints[cpNum]; // remove so it never fires again
+    }
+  }
+}
 function createTile(data){
   const tile = document.createElement("div");
   tile.className = "tile";
@@ -292,40 +466,40 @@ function onMouseUp(e){
    PLACE & SNAPBACK
 ======================= */
 function placeTile(tile, cell, r, c){
-  const old = tile.originalParent;
-  if(old.tagName === "TD"){
-    const or = +old.dataset.row;
-    const oc = +old.dataset.col;
-    board[or][oc] = '';
-    old.innerHTML = '';
-  } else {
-    rack.splice(rack.findIndex(t=>t.letter===tile.textContent),1);
-  }
+    const old = tile.originalParent;
+    if(old.tagName === "TD"){
+        const or = +old.dataset.row;
+        const oc = +old.dataset.col;
+        board[or][oc] = '';
+        old.innerHTML = '';
+    } else {
+        rack.splice(rack.findIndex(t => t.letter === tile.textContent), 1);
+    }
 
-  board[r][c] = tile.textContent;
+    board[r][c] = tile.textContent;
 
-  tile.style.position = "relative";
-  tile.style.left = "0";
-  tile.style.top = "0";
-  tile.style.zIndex = "";
+    tile.style.position = "relative";
+    tile.style.left = "0";
+    tile.style.top = "0";
+    tile.style.zIndex = "";
 
-  tile.originalParent = cell;
-  cell.appendChild(tile);
+    tile.originalParent = cell;
+    cell.appendChild(tile);
 
-  refillRack();
+    // Mark this tile as new for scoring
+    tile.dataset.new = "true";
+
+    refillRack();
 }
-
 function snapBack(tile){
   tile.style.position = "relative";
   tile.style.left = "0";
   tile.style.top = "0";
   tile.style.zIndex = "";
+  tile.style.pointerEvents = "auto";
   tile.originalParent.appendChild(tile);
 }
 
-/* =======================
-   WORD CHECK
-======================= */
 /* =======================
    WORD CHECK WITH LETTER SCORES
 ======================= */
@@ -333,13 +507,15 @@ function checkBoard() {
     if (!rack.length && !document.querySelectorAll("#board .tile").length) return;
 
     let points = 0;
-    const visited = Array.from({length: boardSize}, () => Array(boardSize).fill(false));
+    const visited = Array.from({ length: boardSize }, () => Array(boardSize).fill(false));
+    let tilesToScore = [];
 
+    // Collect tiles for scoring
     for (let r = 0; r < boardSize; r++) {
         for (let c = 0; c < boardSize; c++) {
             if (board[r][c] === '' || visited[r][c]) continue;
 
-            // Check horizontal word
+            // Horizontal word
             let cc = c;
             let hWord = '';
             let hTiles = [];
@@ -350,13 +526,10 @@ function checkBoard() {
                 cc++;
             }
             if (hWord.length > 1 && validWords.includes(hWord)) {
-                hTiles.forEach(([rr, cc]) => {
-                    const tileEl = document.querySelector(`td[data-row="${rr}"][data-col="${cc}"] .tile`);
-                    if (tileEl) points += +tileEl.dataset.points;
-                });
+                tilesToScore.push(...hTiles);
             }
 
-            // Check vertical word
+            // Vertical word
             let rr = r;
             let vWord = '';
             let vTiles = [];
@@ -366,17 +539,56 @@ function checkBoard() {
                 rr++;
             }
             if (vWord.length > 1 && validWords.includes(vWord)) {
-                vTiles.forEach(([rr, cc]) => {
-                    const tileEl = document.querySelector(`td[data-row="${rr}"][data-col="${cc}"] .tile`);
-                    if (tileEl) points += +tileEl.dataset.points;
-                });
+                tilesToScore.push(...vTiles);
             }
         }
     }
-    points -= prevScore;
-    score += points;
-    document.getElementById("score").textContent = score;
-    alert(points ? `Scored ${points}` : "No valid words");
+
+    // Remove duplicates
+    tilesToScore = tilesToScore.map(JSON.stringify).filter((v, i, a) => a.indexOf(v) === i).map(JSON.parse);
+// Inside your existing checkBoard() animation loop
+tilesToScore = tilesToScore.filter(([r,c]) => {
+    const tileEl = document.querySelector(`td[data-row="${r}"][data-col="${c}"] .tile`);
+    return tileEl && tileEl.dataset.new === "true";
+});
+
+// Animate tiles
+let index = 0;
+function animateTiles() {
+    if(index >= tilesToScore.length){
+        // After scoring, remove the "new" mark
+        tilesToScore.forEach(([r,c]) => {
+            const tileEl = document.querySelector(`td[data-row="${r}"][data-col="${c}"] .tile`);
+            if(tileEl) tileEl.removeAttribute("data-new");
+        });
+        prevScore = score;
+        return;
+    }
+
+    const [r,c] = tilesToScore[index];
+    const tileEl = document.querySelector(`td[data-row="${r}"][data-col="${c}"] .tile`);
+    if(tileEl){
+        const tilePoints = +tileEl.dataset.points;
+        score += tilePoints;
+        document.getElementById("score").textContent = score;
+
+        // Flash new tile
+        tileEl.style.boxShadow = "0 0 10px gold";
+        setTimeout(() => tileEl.style.boxShadow = "", 300);
+    }
+
+    index++;
+    setTimeout(animateTiles, 150);
+}
+
+    if (tilesToScore.length > 0) {
+        animateTiles();
+        alert(`Scored ${tilesToScore.reduce((sum, [r, c]) => sum + +document.querySelector(`td[data-row="${r}"][data-col="${c}"] .tile`).dataset.points, 0)} points!`);
+        checkScoreCheckpoints();
+    } else {
+        alert("No valid words");
+        checkScoreCheckpoints();
+    }
 }
 document.addEventListener("keydown", e => {
     if(e.key === "Shift" && selectedTile) {
@@ -410,7 +622,10 @@ function deleteSelectedTile(){
    INIT
 ======================= */
 refillRack();
-
+/* =======================
+   Line EATER (ie. the end of the code)
+   NOM NOM NOM NOM NOM NOM NOM NOM
+======================= */
 </script>
 </body>
 </html>
